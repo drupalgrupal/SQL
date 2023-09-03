@@ -2,7 +2,12 @@
 /*
 
 By an orphan database, I mean a database that no one
-is using anymore. Such databases can be a good 
+is using anymore, essentially the users and apps
+using this database either migrated to a different, 
+possibly upgraded copy of this database or 
+simply retired. 
+
+Such databases can be a good 
 candidate for taking them offline and
 decommission.
 
