@@ -1,4 +1,3 @@
-
 /*
 RETURNS LIST OF FOLDER NAMES WHERE SQL SERVER DATABASE
 FILES ARE STORED
@@ -34,5 +33,7 @@ ELSE
 					physical_name  
 				from sys.master_files
 		)
-		select distinct folder_path from cte;
-
+		select distinct 
+			folder_path,
+			[create_folder] = 'mkdir -p "' + folder_path + '"'
+		from cte;
