@@ -36,4 +36,6 @@ ELSE
 		select distinct 
 			folder_path,
 			[create_folder] = 'mkdir -p "' + folder_path + '"'
-		from cte;
+		from cte
+                order by folder_path;
+
