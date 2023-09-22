@@ -1,0 +1,37 @@
+;WITH cte_plan_cache_usage_by_obj_type AS 
+(
+	SELECT COALESCE(objtype, '-- ALL Plans') objtype,
+           Sum(Cast(size_in_bytes AS BIGINT)) / 
+		              1024 / 1024 size_mb
+    FROM   sys.dm_exec_cached_plans
+    GROUP  BY rollup ( objtype )
+)
+SELECT objtype,
+       size_mb,
+	   'percent' = 
+		   ( size_mb * 100 ) / (SELECT size_mb
+					FROM   cte_plan_cache_usage_by_obj_type
+					WHERE  objtype = '-- ALL Plans'
+		   ) 
+FROM   cte_plan_cache_usage_by_obj_type
+ORDER  BY size_mb DESC;
+
+;WITH cte_plan_cache_usage_by_obj_type AS 
+(
+	SELECT COALESCE(objtype, '-- ALL Plans') objtype,
+           Sum(Cast(size_in_bytes AS BIGINT)) / 
+		              1024 / 1024 size_mb
+    FROM   sys.dm_exec_cached_plans
+    GROUP  BY rollup ( objtype )
+)
+SELECT objtype,
+       size_mb,
+	   'percent' = 
+		   ( size_mb * 100 ) / 
+                       (SELECT size_mb
+			FROM   cte_plan_cache_usage_by_obj_type
+			WHERE  objtype = '-- ALL Plans'
+		   ) 
+FROM   cte_plan_cache_usage_by_obj_type
+ORDER  BY size_mb DESC
+;
