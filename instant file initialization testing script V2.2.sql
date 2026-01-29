@@ -1,3 +1,5 @@
+-- https://sqlpal.blogspot.com/2026/01/reality-and-limits-of-instant-file.html
+--
 -- =================================================================
 -- SQL Server Instant File Initialization (IFI) Test Script
 -- =================================================================
@@ -117,4 +119,5 @@ BEGIN
 END;
 
 RAISERROR('INFO: Test complete. Check results above.', 0, 1) WITH NOWAIT;
+
 
