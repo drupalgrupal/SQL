@@ -1,4 +1,4 @@
--- See blog post: https://sqlpal.blogspot.com/p/delete-old-history-records-from-msdb.html
+-- See blog post: https://sqlpal.blogspot.com/2026/01/FixSlowMSDB.html
 --
 /*==========================================================================================
   Script Name : Purge_MSDB_History_Cleanup.sql
