@@ -14,7 +14,7 @@
       - Can be run interactively to quickly see which jobs are currently 
         running long.
 
-  Key Behaviors (Why it is written this way):
+  Key Behaviors:
       - Uses msdb job metadata plus dm_exec dynamic views to correlate SQL Agent 
         job execution with live session/request runtime metrics.
       - Filters only *currently running* jobs and applies a runtime threshold 
