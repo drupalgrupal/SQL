@@ -1,4 +1,5 @@
 -- Get-MissingIndexScripts.sql
+-- https://learn.microsoft.com/en-us/sql/relational-databases/system-dynamic-management-views/sys-dm-db-missing-index-details-transact-sql
 --
 SELECT 
     LEFT(PARSENAME(mid.statement, 3), 32) AS DB_Name,
