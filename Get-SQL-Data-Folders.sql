@@ -1,3 +1,5 @@
+-- See blog post: https://sqlpal.blogspot.com/2024/01/How%20to%20Find%20Where%20Your%20Databases%20Reside%20In%20The%20File%20System.html
+--
 /*****************************************************************************************
  Script: Get SQL Server Database File Folder Locations
  Purpose: Returns DISTINCT list of all folders containing SQL Server database files 
@@ -5,7 +7,9 @@
 
  Features:
   * Works on SQL Server 2000-2025
-  * Generates mkdir commands for backup/restore prep
+  * Generates TWO create-directory methods:
+     - xp_create_subdir: T-SQL for Windows/SQL Agent jobs (xp_cmdshell required)
+     - mkdir -p: Linux shell commands for backup/migration targets
   * Falls back to legacy method if VIEW SERVER STATE denied or old version
 
  Usage: Run as sysadmin or user with VIEW SERVER STATE permission
@@ -73,6 +77,7 @@ BEGIN
     )
     SELECT DISTINCT 
         folder_path,
+        'EXEC master.dbo.xp_create_subdir N''' + folder_path + '''' AS xp_create_subdir,
         'mkdir -p "' + folder_path + '"' AS create_folder
     FROM cte
     ORDER BY folder_path;
