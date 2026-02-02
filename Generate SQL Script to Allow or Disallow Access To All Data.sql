@@ -1,74 +1,72 @@
 -- See blog post: Generate SQL Script to Allow or Disallow Access To All Data
+SET NOCOUNT ON;
+-- USE [Your Database Name];
 
-/* 
--- List of valid permissions at the schema level
-ALTER
-CONTROL
-CREATE SEQUENCE
-DELETE
-EXECUTE
-INSERT
-REFERENCES
-SELECT
-TAKE OWNERSHIP
-UPDATE
-VIEW CHANGE TRACKING
-VIEW DEFINITION
+-- =============================================
+-- Generate GRANT/DENY Schema Permission Scripts
+-- =============================================
+-- Purpose: Creates ready-to-execute GRANT/DENY statements for schema permissions
+--          on ALL valid database users (excluding system accounts)
+-- Usage:   Change @SchemaName and @Permission below, then execute
+-- Output:  Columns with GRANT and DENY scripts for each user
+-- Blog:    Generate SQL Script to Allow or Disallow Access To All Data
+-- =============================================
 
-Please see: https://learn.microsoft.com/en-us/sql/t-sql/statements/grant-schema-permissions-transact-sql?view=sql-server-ver16
 
-*/
-SET NOCOUNT ON
-GO
-USE <DBName>
-DECLARE @schema_owner varchar(100)
-DECLARE @schema_permission varchar(100) = 'EXECUTE'
-SET @schema_owner = 'dbo'     
+-- CONFIGURATION - CHANGE THESE VALUES
+DECLARE @SchemaName     SYSNAME = 'dbo';        -- Target schema (must exist)
+DECLARE @Permission     VARCHAR(100) = 'EXECUTE'; -- Permission to grant/deny
+-- Valid: ALTER, DELETE, EXECUTE, INSERT, SELECT, UPDATE, etc.
 
-declare @valid_permissions table(valid_permission_name varchar(100))
-insert into @valid_permissions
-values
-('ALTER'),
-('CONTROL'),
-('CREATE SEQUENCE'),
-('DELETE'),
-('EXECUTE'),
-('INSERT'),
-('REFERENCES'),
-('SELECT'),
-('TAKE OWNERSHIP'),
-('UPDATE'),
-('VIEW CHANGE TRACKING'),
-('VIEW DEFINITION')
 
-IF SCHEMA_ID(@schema_owner) is null
+-- Valid schema-level permissions (per MS Docs)
+DECLARE @ValidPermissions TABLE (PermissionName SYSNAME PRIMARY KEY);
+INSERT @ValidPermissions (PermissionName) VALUES
+    ('ALTER'), ('CONTROL'), ('CREATE SEQUENCE'), ('DELETE'), ('EXECUTE'),
+    ('INSERT'), ('REFERENCES'), ('SELECT'), ('TAKE OWNERSHIP'), 
+    ('UPDATE'), ('VIEW CHANGE TRACKING'), ('VIEW DEFINITION');
+
+-- =============================================
+-- VALIDATION
+-- =============================================
+-- Check if schema exists
+IF SCHEMA_ID(@SchemaName) IS NULL
 BEGIN
-		RAISERROR('Error: Schema %s does not exist.', 16, 1, @schema_owner)
-		GOTO QUIT
+    RAISERROR('ERROR: Schema ''%s'' does not exist.', 16, 1, @SchemaName);
+    RETURN;
 END
 
-
-if not exists(select * from @valid_permissions where valid_permission_name = @schema_permission)
+-- Check if permission is valid
+IF NOT EXISTS (SELECT 1 FROM @ValidPermissions WHERE PermissionName = @Permission)
 BEGIN
-		RAISERROR('Error: Permission (%s) is not a valid schema permission.', 16, 1, @schema_permission)
-		SELECT valid_permission_name FROM @valid_permissions
-		GOTO QUIT
+    RAISERROR('ERROR: ''%s'' is not a valid schema permission.', 16, 1, @Permission);
+    PRINT 'Valid schema permissions:';
+    SELECT PermissionName + ',' FROM @ValidPermissions ORDER BY PermissionName
+    FOR XML PATH('');
+    RETURN;
 END
 
-
+-- =============================================
+-- GENERATE GRANT/DENY SCRIPTS
+-- =============================================
 SELECT 
-		name [user_name],
-		@schema_owner [schema_name],
-		'USE ' + QUOTENAME(db_name()) + ';' + 
-		'GRANT ' + @schema_permission + ' ON SCHEMA::' + QUOTENAME(@schema_owner) + ' TO ' + QUOTENAME(name) + ';' [Grant_Schema_Access],
+    dp.name AS [UserName],
+    @SchemaName AS [SchemaName],
+    -- GRANT script (fully qualified, ready to execute)
+    'USE ' + QUOTENAME(DB_NAME()) + ';' + CHAR(13) + CHAR(10) + 
+    'GRANT ' + @Permission + ' ON SCHEMA::' + QUOTENAME(@SchemaName) + 
+    ' TO ' + QUOTENAME(dp.name) + ';' AS [GrantScript],
+    
+    -- DENY script (fully qualified, ready to execute)
+    'USE ' + QUOTENAME(DB_NAME()) + ';' + CHAR(13) + CHAR(10) + 
+    'DENY ' + @Permission + ' ON SCHEMA::' + QUOTENAME(@SchemaName) + 
+    ' TO ' + QUOTENAME(dp.name) + ';' AS [DenyScript]
 
-		'USE ' + QUOTENAME(db_name()) + ';' + 
-		'DENY ' + @schema_permission + ' ON SCHEMA::' + QUOTENAME(@schema_owner) + ' TO ' + QUOTENAME(name) + ';' [Deny_Schema_Access]
+FROM sys.database_principals dp
+WHERE dp.name NOT IN ('public', 'dbo', 'guest', 'INFORMATION_SCHEMA', 'sys')
+  AND dp.name NOT LIKE '#%'
+  AND dp.name NOT IN ('AppUser1', 'AppUser2')  -- Customize exclusions
+  AND dp.is_fixed_role = 0                    -- Exclude fixed roles
+  AND dp.type IN ('S', 'U', 'G')              -- SQL Users, Windows Users, Windows Groups only
+ORDER BY dp.name;
 
-FROM sys.database_principals
-WHERE      name not in ('public','dbo','guest','INFORMATION_SCHEMA','sys')
-       AND name not in ('AppUser1','AppUser2')
-       AND is_fixed_role = 0
-ORDER BY name
-
-QUIT:
