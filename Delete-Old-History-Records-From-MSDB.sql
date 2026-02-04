@@ -79,7 +79,7 @@ GO
 -- ==========================================
 -- This parameter controls all retention
 -- ==========================================
-DECLARE @DaysRetention     INT     = 10;  -- Keep 1 year of history (adjust per policy)
+DECLARE @DaysRetention     INT     = 365;  -- Keep 1 year of history (adjust per policy)
 DECLARE @DeleteBeforeDate  DATETIME;
 
 SET @DeleteBeforeDate = DATEADD(DAY, -@DaysRetention, GETDATE());
