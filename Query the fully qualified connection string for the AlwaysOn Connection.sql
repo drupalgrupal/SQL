@@ -66,7 +66,7 @@ BEGIN
                 ELSE CONCAT(
                         DNS_NAME, 
                         ISNULL(CONCAT('.', @DomainName), ''), 
-                        '\\', 
+                        '\', 
                         CAST(SERVERPROPERTY('InstanceName') AS NVARCHAR(100))
                      )
             END
