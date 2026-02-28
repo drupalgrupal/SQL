@@ -58,16 +58,12 @@ CREATE TABLE #xp_results
 SELECT @job_id = job_id FROM msdb.dbo.sysjobs WHERE name = @job_name;
 SELECT @job_owner = SUSER_SNAME();  -- Captures current execution context (job owner).
 
-
---==========================================================================
--- Step 1: Populate initial job status information.
---==========================================================================
 INSERT INTO #xp_results
 EXEC master.dbo.xp_sqlagent_enum_jobs 1, @job_owner, @job_id;
 
 
 --==========================================================================
--- Step 2: Start the job only if it is not already running.
+-- Start the job only if it is not already running.
 --==========================================================================
 IF NOT EXISTS (SELECT 1 FROM #xp_results WHERE running = 1)
 BEGIN
@@ -85,7 +81,7 @@ EXEC master.dbo.xp_sqlagent_enum_jobs 1, @job_owner, @job_id;
 
 
 --==========================================================================
--- Step 3: Monitor the running job until completion.
+-- Monitor the running job until completion.
 --==========================================================================
 WHILE EXISTS (SELECT 1 FROM #xp_results WHERE running = 1)
 BEGIN
@@ -103,7 +99,7 @@ END
 
 
 --==========================================================================
--- Step 4: Retrieve and report final job completion status.
+-- Retrieve and report final job completion status.
 --==========================================================================
 SELECT TOP 1 @JobCompletionStatus = run_status
 FROM msdb.dbo.sysjobhistory
