@@ -1,0 +1,206 @@
+/*
+ ============================================================================
+ INDEX SCRIPT GENERATOR (SQL Server 2005+)
+ ============================================================================
+ Purpose:
+   Generates CREATE INDEX statements for all user‑defined indexes in the
+   current database, including:
+   - Clustered / nonclustered rowstore
+   - Clustered / nonclustered columnstore
+   - Filtered indexes
+   - XML and spatial indexes
+
+ Result:
+   Outputs a column "CreateIndexStatement" containing full T‑SQL scripts.
+   These can be pasted into a new window, run as‑is, or loaded into a temp
+   table (e.g., #dba_index) for later use.
+
+ Author:  
+ Updated: 2026‑03‑26
+
+ USAGE NOTES AND CAVEATS
+ ----------------------------------------------------------------------------
+ 1. Database context:
+    - This script runs in the context of the current database.
+    - It only lists indexes in that database.
+
+ 2. Index types handled:
+    - CLUSTERED / NONCLUSTERED (rowstore)
+    - CLUSTERED_COLUMNSTORE / NONCLUSTERED_COLUMNSTORE
+    - XML / SPATIAL
+    - Filtered indexes (via WHERE clause)
+
+ 3. Indexes skipped:
+    - Primary key / unique constraint indexes (is_primary_key = 1,
+      is_unique_constraint = 1).
+    - Hypothetical indexes (is_hypothetical = 1).
+    - System objects (is_ms_shipped = 1).
+
+ 4. Collation‑handling:
+    - Uses COLLATE DATABASE_DEFAULT on s.name, t.name, i.name to avoid
+      collation conflicts when concatenating strings.
+    - This assumes the database’ default collation is acceptable for all
+      generated scripts.
+
+ 5. Generated statement behavior:
+    - Wraps each CREATE INDEX in:
+        IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE ...)
+      to avoid duplicate index creation.
+    - Uses OBJECT_ID with schema‑qualified names (e.g., [schema].[table]).
+    - Includes key columns, ASC/DESC, included columns, and index options
+      (PAD_INDEX, FILLFACTOR, ONLINE effects, etc.).
+
+ 6. What it does NOT do:
+    - It does not script:
+        - PRIMARY KEY / UNIQUE constraints (only pure indexes).
+        - Statistics objects not backed by an index.
+        - Columnstore ORDER(), MAXDOP=, ONLINE=, or other advanced options
+          beyond the common WITH options listed.
+    - It does not:
+        - Drop indexes.
+        - Handle partitioning syntax beyond the ON <filegroup | partition scheme>.
+    - It does not preserve:
+        - Existing index names on constraint‑created indexes (they are skipped).
+        - Any index‑specific hints or undocumented options not exposed in
+          sys.indexes.
+
+ 7. Safety and testing:
+    - Always test output in a non‑production environment first.
+    - In active OLTP systems, CREATE INDEX can block or slow down workloads;
+      consider:
+        - Using ONLINE = ON (if Enterprise Edition).
+        - Creating indexes during maintenance windows.
+        - Monitoring blocking and wait stats.
+    - If you have collation‑specific comparisons elsewhere in your app,
+      verify that the generated script’s collation semantics match.
+
+ 8. Compatibility:
+    - Uses views introduced in SQL Server 2005 (sys.indexes, sys.index_columns,
+      sys.stats, sys.data_spaces), so it works on 2005+.
+    - ORDER BY CASE i.type_desc LIKE 'CLUSTERED%'... is SQL Server 2005+.
+    - Some WITH options (e.g., ONLINE, DATA_COMPRESSION) may require SQL Server
+      2008+ or 2012+ depending on index type.
+    - Columnstore indexes require SQL Server 2012+ (Enterprise Edition for
+      some features).
+
+ 9. Performance:
+    - For very large databases with many tables and indexes, this query can
+      be moderately heavy on catalog metadata; run it during low‑activity windows
+      if that is a concern.
+
+ ============================================================================ */
+
+SET NOCOUNT ON;
+SET TRANSACTION ISOLATION LEVEL READ UNCOMMITTED;
+
+;WITH IncludedCols AS
+(
+    SELECT
+        ic.object_id,
+        ic.index_id,
+        IncludedColumns =
+            STUFF(
+                (
+                    SELECT ', ' + QUOTENAME(c.name)
+                    FROM sys.index_columns ic1
+                    JOIN sys.columns c
+                        ON c.object_id = ic1.object_id
+                       AND c.column_id = ic1.column_id
+                    WHERE ic1.object_id = ic.object_id
+                      AND ic1.index_id  = ic.index_id
+                      AND ic1.is_included_column = 1
+                    ORDER BY c.column_id
+                    FOR XML PATH(''), TYPE
+                ).value('.', 'nvarchar(max)')
+            ,1,2,'')
+    FROM sys.index_columns ic
+    GROUP BY ic.object_id, ic.index_id
+),
+KeyCols AS
+(
+    SELECT
+        ic.object_id,
+        ic.index_id,
+        KeyColumns =
+            STUFF(
+                (
+                    SELECT ', ' + QUOTENAME(c.name) +
+                           CASE WHEN ic1.is_descending_key = 1 THEN ' DESC' ELSE ' ASC' END
+                    FROM sys.index_columns ic1
+                    JOIN sys.columns c
+                        ON c.object_id = ic1.object_id
+                       AND c.column_id = ic1.column_id
+                    WHERE ic1.object_id = ic.object_id
+                      AND ic1.index_id  = ic.index_id
+                      AND ic1.is_included_column = 0
+                    ORDER BY ic1.key_ordinal
+                    FOR XML PATH(''), TYPE
+                ).value('.', 'nvarchar(max)')
+            ,1,2,'')
+    FROM sys.index_columns ic
+    GROUP BY ic.object_id, ic.index_id
+)
+SELECT
+    'IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE object_id = OBJECT_ID(N''' +
+        QUOTENAME(s.name COLLATE DATABASE_DEFAULT) +
+        '.' +
+        QUOTENAME(t.name COLLATE DATABASE_DEFAULT) +
+        ''') AND name = N''' +
+        i.name COLLATE DATABASE_DEFAULT +
+        ''')
+CREATE ' +
+        CASE WHEN i.is_unique = 1
+             THEN 'UNIQUE '
+             ELSE ''
+        END +
+        CASE
+            WHEN i.type_desc IN ('CLUSTERED', 'NONCLUSTERED')
+                THEN i.type_desc + ' '
+            WHEN i.type_desc LIKE '%COLUMNSTORE%'
+                THEN i.type_desc + ' '
+            WHEN i.type_desc IN ('XML', 'SPATIAL')
+                THEN i.type_desc + ' '
+            ELSE ''
+        END + 'INDEX ' + QUOTENAME(i.name COLLATE DATABASE_DEFAULT) + ' ON ' +
+        QUOTENAME(s.name COLLATE DATABASE_DEFAULT) + '.' +
+        QUOTENAME(t.name COLLATE DATABASE_DEFAULT) +
+        CASE
+            WHEN i.type_desc LIKE '%COLUMNSTORE%' THEN
+                ISNULL(' (' + kc.KeyColumns + ')','')
+            ELSE
+                ' (' + kc.KeyColumns + ')'
+        END +
+        ISNULL(' INCLUDE (' + ic.IncludedColumns + ')','') +
+        ISNULL(' WHERE ' + i.filter_definition,'') +
+        ' WITH (' +
+            'PAD_INDEX = ' + CASE WHEN i.is_padded = 1 THEN 'ON' ELSE 'OFF' END +
+            ', FILLFACTOR = ' + CONVERT(varchar(5), CASE WHEN i.fill_factor = 0 THEN 100 ELSE i.fill_factor END) +
+            ', IGNORE_DUP_KEY = ' + CASE WHEN i.ignore_dup_key = 1 THEN 'ON' ELSE 'OFF' END +
+            ', STATISTICS_NORECOMPUTE = ' + CASE WHEN st.no_recompute = 1 THEN 'ON' ELSE 'OFF' END +
+            ', ALLOW_ROW_LOCKS = ' + CASE WHEN i.allow_row_locks = 1 THEN 'ON' ELSE 'OFF' END +
+            ', ALLOW_PAGE_LOCKS = ' + CASE WHEN i.allow_page_locks = 1 THEN 'ON' ELSE 'OFF' END +
+        ')' +
+        ' ON [' + ds.name + '];'
+AS CreateIndexStatement
+FROM sys.indexes i
+JOIN sys.tables t ON t.object_id = i.object_id
+JOIN sys.schemas s ON s.schema_id = t.schema_id
+JOIN sys.stats st ON st.object_id = i.object_id
+   AND st.stats_id  = i.index_id
+JOIN sys.data_spaces ds ON ds.data_space_id = i.data_space_id
+LEFT JOIN IncludedCols ic ON ic.object_id = i.object_id
+   AND ic.index_id  = i.index_id
+LEFT JOIN KeyCols kc ON kc.object_id = i.object_id
+   AND kc.index_id  = i.index_id
+WHERE
+    i.is_hypothetical      = 0        -- Exclude hypothetical indexes.
+    AND i.index_id         > 0        -- Exclude heap row locators.
+    AND i.is_primary_key   = 0        -- Skip primary key indexes.
+    AND i.is_unique_constraint = 0    -- Skip unique constraint indexes.
+    AND t.is_ms_shipped    = 0        -- Skip system tables.
+ORDER BY
+    s.name,
+    t.name,
+    CASE WHEN i.type_desc LIKE 'CLUSTERED%' THEN 0 ELSE 1 END,  -- Clustered first...
+    i.name;                                                      -- then index name.
+
