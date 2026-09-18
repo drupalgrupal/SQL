@@ -45,8 +45,6 @@ For default-backup-path discovery, SQL Server 2019 and later use `SERVERPROPERTY
 | TRUNCATE | Empty the separate work queue | Examine allocation and metadata work rather than individual user-row deletion records |
 | ROLLBACK | Delete customer 5, then undo it | A logged delete alone is not proof of committed data loss |
 
-The approach of locating transaction records, identifying their security context, and following transaction IDs builds on [Paul Randal's fn_dblog and recovery walkthrough](https://www.sqlskills.com/blogs/paul/using-fn_dblog-fn_dump_dblog-and-restoring-with-stopbeforemark-to-an-lsn/). The distinction between per-row deletion and `TRUNCATE` deallocation is described in [Microsoft's TRUNCATE TABLE documentation](https://learn.microsoft.com/en-us/sql/t-sql/statements/truncate-table-transact-sql).
-
 The script first offers discovery queries that do not rely on scenario labels, then reveals the teaching answer key. Named outer transactions are useful labels for this exercise, not something to assume an ordinary application supplies, as explained in [Gail Shaw's discussion of transaction names](https://www.sqlservercentral.com/blogs/why-would-you-want-to-name-a-transaction).
 
 ## How this lab keeps the example records available
