@@ -33,8 +33,6 @@ If a database named `SQLPal_LogForensicsLab` exists, the main script refuses to 
 
 The script uses dynamic batches so the new database can be created before its objects are compiled, while keeping one outer error handler. Doubled single quotes inside those batches are T-SQL string escaping, not characters to paste into a standalone query.
 
-For default-backup-path discovery, SQL Server 2019 and later use `SERVERPROPERTY('InstanceDefaultBackupPath')`, whose version availability is documented by [Microsoft](https://learn.microsoft.com/en-us/sql/t-sql/functions/serverproperty-transact-sql). On SQL Server 2017 for Windows, the script uses the instance-aware `BackupDirectory` registry lookup illustrated by [MSSQLTips](https://www.mssqltips.com/sqlservertip/1966/function-to-return-default-sql-server-backup-folder/). If automatic discovery is unavailable, including on SQL Server 2017 for Linux, specify `@BackupDirectory` explicitly.
-
 ## What the scenarios teach
 
 | Scenario | Intended result | Investigation lesson |
