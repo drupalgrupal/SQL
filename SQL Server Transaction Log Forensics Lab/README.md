@@ -64,7 +64,7 @@ The first capture goes into a temporary table. After the scan completes, the scr
 - **TRUNCATE trail:** Inspect root-transaction records and their descriptions; do not expect identical internal operation sequences on every build.
 - **Final state:** Five customers remain, customer 5 survives the rollback, customer 2 has a credit limit of 2500, and the work queue is empty.
 
-Related engine work can use separate system transactions; the root transaction is not always the complete set of associated work, as [Paul Randal explains for Parent Transaction ID](https://www.sqlskills.com/blogs/paul/parent-transaction-id-in-2012-fn_dblog-output/). `TRUNCATE` can also involve deferred deallocation, described in [Microsoft's documentation](https://learn.microsoft.com/en-us/sql/t-sql/statements/truncate-table-transact-sql).
+Related engine work can use separate system transactions; the root transaction is not always the complete set of associated work, as [Paul Randal explains for Parent Transaction ID](https://www.sqlskills.com/blogs/paul/parent-transaction-id-in-2012-fn_dblog-output/). 
 
 ## What this lab does not prove
 
